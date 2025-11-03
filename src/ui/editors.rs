@@ -35,7 +35,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -45,24 +53,40 @@ where
                 apply(v);
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                let _ = notify_ephemeral(
+
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     success_msg(v),
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_lamports ok)"
+                    );
+                }
 
                 true
             }
             _ => {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_lamports err)"
+                    );
+                }
+
                 false
             }
         },
@@ -96,7 +120,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -106,24 +138,39 @@ where
                 apply_bp(bp);
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     success_msg(bp),
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_percent ok)"
+                    );
+                }
 
                 true
             }
             _ => {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_percent err)"
+                    );
+                }
+
                 false
             }
         },
@@ -157,7 +204,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -165,13 +220,21 @@ where
         Some(text) => {
             let t = text.trim();
             if t.starts_with('-') {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_percent_positive sign)"
+                    );
+                }
+
                 return false;
             }
 
@@ -180,24 +243,40 @@ where
                     apply_bp(bp);
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
-                    let _ = notify_ephemeral(
+
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         success_msg(bp),
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_percent_positive ok)"
+                        );
+                    }
 
                     true
                 }
                 _ => {
-                    let _ = notify_ephemeral(
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         err_text,
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_percent_positive err)"
+                        );
+                    }
+
                     false
                 }
             }
@@ -232,7 +311,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -240,13 +327,21 @@ where
         Some(text) => {
             let t = text.trim();
             if t.starts_with('+') {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_percent_negative sign)"
+                    );
+                }
+
                 return false;
             }
 
@@ -255,24 +350,39 @@ where
                     apply_bp(bp);
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
-                    let _ = notify_ephemeral(
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         success_msg(bp),
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_percent_negative ok)"
+                        );
+                    }
 
                     true
                 }
                 _ => {
-                    let _ = notify_ephemeral(
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         err_text,
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_percent_negative err)"
+                        );
+                    }
+
                     false
                 }
             }
@@ -307,7 +417,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -317,24 +435,39 @@ where
                 apply_secs(secs);
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                let _ = notify_ephemeral(
+
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     success_msg(secs),
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_time_secs ok)"
+                    );
+                }
 
                 true
             }
             _ => {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_time_secs err)"
+                    );
+                }
                 false
             }
         },
@@ -367,7 +500,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -379,24 +520,40 @@ where
                     apply(v);
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
-                    let _ = notify_ephemeral(
+
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         success_msg(v),
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_u64 ok)"
+                        );
+                    }
 
                     true
                 }
                 Err(_) => {
-                    let _ = notify_ephemeral(
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         err_text,
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_u64 err)"
+                        );
+                    }
+
                     false
                 }
             }
@@ -432,7 +589,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -444,24 +609,40 @@ where
                     apply(v);
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
-                    let _ = notify_ephemeral(
+
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         success_msg(v),
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_u64_valid ok)"
+                        );
+                    }
 
                     true
                 }
                 _ => {
-                    let _ = notify_ephemeral(
+                    if let Err(e) = notify_ephemeral(
                         bot,
                         msg.chat.id,
                         err_text,
                         std::time::Duration::from_secs(3),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(
+                            error=?e,
+                            chat=%msg.chat.id.0,
+                            "notify_ephemeral failed (edit_u64_valid err)"
+                        );
+                    }
+
                     false
                 }
             }
@@ -495,7 +676,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -503,25 +692,40 @@ where
         Some(text) => {
             let t = text.trim();
             if t.is_empty() {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_string_nonempty empty)"
+                    );
+                }
+
                 false
             } else {
                 apply(t.to_string());
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     success_msg(t),
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_string_nonempty ok)"
+                    );
+                }
 
                 true
             }
@@ -555,7 +759,15 @@ where
         .and_then(|s| s.ui_get_input_prompt_message_id())
         .is_none()
     {
-        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+            tracing::warn!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete message failed (prompt inactive)"
+            );
+        }
+
         return false;
     }
 
@@ -565,24 +777,40 @@ where
                 apply(addr.clone());
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                let _ = notify_ephemeral(
+
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     success_msg(&addr),
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_base58_address ok)"
+                    );
+                }
 
                 true
             }
             None => {
-                let _ = notify_ephemeral(
+                if let Err(e) = notify_ephemeral(
                     bot,
                     msg.chat.id,
                     err_text,
                     std::time::Duration::from_secs(3),
                 )
-                .await;
+                .await
+                {
+                    tracing::warn!(
+                        error=?e,
+                        chat=%msg.chat.id.0,
+                        "notify_ephemeral failed (edit_base58_address err)"
+                    );
+                }
+
                 false
             }
         },

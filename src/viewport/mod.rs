@@ -10,7 +10,7 @@ use crate::ui::prelude::UiRequester;
 use dialogue::Dialogue;
 use store::Store;
 use teloxide::dispatching::dialogue;
-use teloxide::payloads::SendMessageSetters;
+use teloxide::payloads::{EditMessageTextSetters, SendMessageSetters};
 use teloxide::requests;
 use teloxide::sugar::request::RequestReplyExt;
 use teloxide::types::{
@@ -43,7 +43,7 @@ pub struct Viewport<M: Store> {
     meta: M,
 }
 
-pub const DEFAULT_SNAP_TTL_SECS: u32 = 3 * 24 * 60 * 60;
+pub const SNAP_TTL_SECS: u32 = 3 * 24 * 60 * 60;
 
 impl<M: Store> Viewport<M> {
     pub fn new(meta: M) -> Self {
@@ -74,9 +74,11 @@ impl<M: Store> Viewport<M> {
         S: dialogue::Storage<D> + Send + Sync,
         <S as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     {
-        let mid = match policy {
-            crate::scene::RenderPolicy::EditOrReply | crate::scene::RenderPolicy::EditOnly => {
-                message::refresh_or_reply_with(
+        let mut mid_opt: Option<MessageId> = None;
+
+        match policy {
+            crate::scene::RenderPolicy::EditOrReply => {
+                let mid = message::refresh_or_reply_with(
                     bot,
                     chat,
                     d,
@@ -87,7 +89,53 @@ impl<M: Store> Viewport<M> {
                         disable_web_page_preview: view.disable_web_page_preview,
                     },
                 )
-                .await?
+                .await?;
+                mid_opt = Some(mid);
+            }
+            crate::scene::RenderPolicy::EditOnly => {
+                // Edit existing last action
+                // message only; never send new.
+                if let Ok(s) = d.get_or_default().await {
+                    if let Some(last) = s.ui_get_last_action_message_id() {
+                        let mut req =
+                            bot.edit_message_text(chat, MessageId(last), view.text.clone());
+                        if let Some(mk) = view.markup.clone() {
+                            req = req.reply_markup(mk);
+                        }
+
+                        if let Some(pm) = view.parse_mode {
+                            req = req.parse_mode(pm);
+                        }
+
+                        if let Some(disable) = view.disable_web_page_preview {
+                            if disable {
+                                req = req.link_preview_options(LinkPreviewOptions {
+                                    is_disabled: true,
+                                    url: None,
+                                    prefer_small_media: false,
+                                    prefer_large_media: false,
+                                    show_above_text: false,
+                                });
+                            }
+                        }
+
+                        match req.await {
+                            Ok(_msg) => {
+                                mid_opt = Some(MessageId(last));
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    error=?e,
+                                    chat=%chat.0,
+                                    mid=%last,
+                                    "edit message failed (EditOnly), no fallback"
+                                );
+                            }
+                        }
+                    } else {
+                        tracing::debug!(chat=%chat.0, "EditOnly but no last_action_message_id; skipping edit");
+                    }
+                }
             }
             crate::scene::RenderPolicy::SendNew => {
                 // Clear previous prompt and send a new one with Cancel row if needed
@@ -153,14 +201,22 @@ impl<M: Store> Viewport<M> {
                             s.ui_set_reply_to_last_once(false);
                         }
 
-                        let _ = d.update(s).await;
+                        if let Err(e) = d.update(s).await {
+                            tracing::error!(
+                                error=?e,
+                                chat=%chat.0,
+                                mid=%new_id.0,
+                                "dialogue update failed (apply_view:SendNew)",
+                            );
+                        }
                     }
 
-                    new_id
+                    mid_opt = Some(new_id);
                 } else {
                     // Menu/info flow: clear any prompt and send full keyboard as-is
                     message::clear_input_prompt_message(bot, chat, d).await;
-                    message::compact_reply(
+
+                    let mid = message::compact_reply(
                         bot,
                         chat,
                         d,
@@ -173,22 +229,33 @@ impl<M: Store> Viewport<M> {
                         },
                         None,
                     )
-                    .await?
-                }
-            }
-        };
+                    .await?;
 
-        if let Some(spec) = &meta {
-            if let Some(json) = &spec.state_json {
-                if let Ok(mut s) = d.get_or_default().await {
-                    s.ui_set_scene_for_message(mid.0, json.clone());
-
-                    let _ = d.update(s).await;
+                    mid_opt = Some(mid);
                 }
             }
         }
 
-        if let Some(spec) = meta {
+        // Update dialogue mapping and persist
+        // meta only if we have a concrete message id.
+        if let Some(spec) = &meta {
+            if let (Some(json), Some(mid)) = (&spec.state_json, mid_opt) {
+                if let Ok(mut s) = d.get_or_default().await {
+                    s.ui_set_scene_for_message(mid.0, json.clone());
+
+                    if let Err(e) = d.update(s).await {
+                        tracing::error!(
+                            error=?e,
+                            chat=%chat.0,
+                            mid=%mid.0,
+                            "dialogue update failed (apply_view:scene_for_message)",
+                        );
+                    }
+                }
+            }
+        }
+
+        if let (Some(spec), Some(mid)) = (meta, mid_opt) {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -204,7 +271,14 @@ impl<M: Store> Viewport<M> {
                 ttl_secs: spec.ttl_secs,
             };
 
-            let _ = self.meta.save(chat, mid.0, meta).await;
+            if let Err(e) = self.meta.save(chat, mid.0, meta).await {
+                tracing::error!(
+                    error=?e,
+                    chat=%chat.0,
+                    mid=%mid.0,
+                    "meta save failed (apply_view)",
+                );
+            }
         }
 
         Ok(())

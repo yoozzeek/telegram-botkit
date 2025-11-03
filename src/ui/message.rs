@@ -160,8 +160,14 @@ where
 
         match req.await {
             Ok(msg) => return Ok(msg.id),
-            Err(_e) => {
+            Err(e) => {
                 // fallback to reply new below
+                tracing::debug!(
+                    error=?e,
+                    chat=%chat.0,
+                    last_mid=?to_mid.map(|m| m.0),
+                    "edit failed, falling back to send new",
+                );
             }
         }
     }
@@ -225,7 +231,14 @@ where
 
     tokio::spawn(async move {
         tokio::time::sleep(ttl).await;
-        let _ = bot2.delete_message(chat, id).await;
+        if let Err(e) = bot2.delete_message(chat, id).await {
+            tracing::debug!(
+                error=?e,
+                chat=%chat.0,
+                mid=%id.0,
+                "ephemeral TTL delete failed",
+            );
+        }
     });
 
     Ok(id)
@@ -282,7 +295,19 @@ where
 }
 
 pub async fn delete_incoming<R: UiRequester>(bot: &R, msg: &teloxide::types::Message) -> bool {
-    bot.delete_message(msg.chat.id, msg.id).await.is_ok()
+    match bot.delete_message(msg.chat.id, msg.id).await {
+        Ok(_) => true,
+        Err(e) => {
+            tracing::debug!(
+                error=?e,
+                chat=%msg.chat.id.0,
+                mid=%msg.id,
+                "delete incoming failed",
+            );
+
+            false
+        }
+    }
 }
 
 pub fn sanitize_markdown_v2(s: impl AsRef<str>) -> String {

@@ -3,7 +3,7 @@ use crate::scene::{Ctx as SceneCtx, Effect, MsgPattern, RenderPolicy, Scene, UiE
 use crate::session::UiStore;
 use crate::ui::message;
 use crate::ui::prelude::UiRequester;
-use crate::viewport::{DEFAULT_SNAP_TTL_SECS, MetaSpec, Viewport, store};
+use crate::viewport::{MetaSpec, SNAP_TTL_SECS, Viewport, store};
 
 use super::AppCtx;
 
@@ -46,7 +46,7 @@ where
                 let text = message::sanitize_markdown_v2(text_md);
                 let ttl = ttl_secs.map(std::time::Duration::from_secs);
 
-                let _ = message::compact_reply(
+                match message::compact_reply(
                     bot,
                     chat,
                     d,
@@ -59,7 +59,13 @@ where
                     },
                     ttl,
                 )
-                .await;
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!(error=?e, chat=%chat.0, "notification send failed");
+                    }
+                }
             }
             UiEffect::ClearPrompt => {
                 message::clear_input_prompt_message(bot, chat, d).await;
@@ -186,7 +192,14 @@ where
             if let Ok(mut s) = d.get_or_default().await {
                 s.ui_set_active_scene_id(Some(S::ID.to_string()));
 
-                let _ = d.update(s).await;
+                if let Err(e) = d.update(s).await {
+                    tracing::error!(
+                        error=?e,
+                        chat=%ctx.chat().0,
+                        scene_id=%S::ID,
+                        "dialogue update failed (apply_effect:Stay)"
+                    );
+                }
             }
 
             vp.apply_view(
@@ -200,7 +213,7 @@ where
                     scene_version: S::VERSION,
                     state_json: snap.0,
                     state_ref: snap.1,
-                    ttl_secs: DEFAULT_SNAP_TTL_SECS,
+                    ttl_secs: SNAP_TTL_SECS,
                 }),
             )
             .await?;
@@ -212,7 +225,14 @@ where
             if let Ok(mut s) = d.get_or_default().await {
                 s.ui_set_active_scene_id(Some(S::ID.to_string()));
 
-                let _ = d.update(s).await;
+                if let Err(e) = d.update(s).await {
+                    tracing::error!(
+                        error=?e,
+                        chat=%ctx.chat().0,
+                        scene_id=%S::ID,
+                        "dialogue update failed (apply_effect:StayWithEffect)"
+                    );
+                }
             }
 
             vp.apply_view(
@@ -226,7 +246,7 @@ where
                     scene_version: S::VERSION,
                     state_json: snap.0,
                     state_ref: snap.1,
-                    ttl_secs: DEFAULT_SNAP_TTL_SECS,
+                    ttl_secs: SNAP_TTL_SECS,
                 }),
             )
             .await?;
@@ -282,7 +302,14 @@ where
     if let Ok(mut s) = d.get_or_default().await {
         s.ui_set_active_scene_id(Some(S::ID.to_string()));
 
-        let _ = d.update(s).await;
+        if let Err(e) = d.update(s).await {
+            tracing::error!(
+                error=?e,
+                chat=%ctx.chat().0,
+                scene_id=%S::ID,
+                "dialogue update failed (init_and_render)"
+            );
+        }
     }
 
     vp.apply_view(
@@ -296,7 +323,7 @@ where
             scene_version: S::VERSION,
             state_json: snap.0,
             state_ref: snap.1,
-            ttl_secs: DEFAULT_SNAP_TTL_SECS,
+            ttl_secs: SNAP_TTL_SECS,
         }),
     )
     .await?;
@@ -345,7 +372,9 @@ where
 
         apply_effect(routes, scene, ctx, vp, d, &sctx, eff).await?;
 
-        let _ = ctx.bot().answer_callback_query(q.id.clone()).await;
+        if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
+            tracing::warn!(error=?e, chat=%ctx.chat().0, "answer_callback_query failed");
+        }
 
         return Ok(true);
     }
@@ -406,7 +435,7 @@ where
                     state_json: meta.state_json.as_deref(),
                     state_checksum: meta.state_checksum.as_deref(),
                 }) {
-                    let _ = message::delete_incoming(ctx.bot(), m).await;
+                    let _deleted = message::delete_incoming(ctx.bot(), m).await;
 
                     if let Some(handle) = entry {
                         if let Some(ns) = handle(ctx.bot(), d, m, &cur).await {
@@ -424,7 +453,7 @@ where
                                     scene_version: S::VERSION,
                                     state_json: snap.0,
                                     state_ref: snap.1,
-                                    ttl_secs: DEFAULT_SNAP_TTL_SECS,
+                                    ttl_secs: SNAP_TTL_SECS,
                                 }),
                             )
                             .await?;

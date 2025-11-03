@@ -134,7 +134,7 @@ where
                 }
 
                 // Fallback: delete noise
-                let _ = crate::ui::message::delete_incoming(ctx.bot(), m).await;
+                let _deleted = crate::ui::message::delete_incoming(ctx.bot(), m).await;
             }
             AppEvent::Cb(q) => {
                 // Activate viewport and set context
@@ -147,26 +147,49 @@ where
                             .await;
 
                         if let Some(msg) = &q.message {
-                            let _ = ctx.bot().delete_message(msg.chat().id, msg.id()).await;
+                            if let Err(e) = ctx.bot().delete_message(msg.chat().id, msg.id()).await
+                            {
+                                tracing::warn!(
+                                    error=?e,
+                                    chat=%msg.chat().id.0,
+                                    mid=%msg.id().0,
+                                    "delete message failed (CANCEL)"
+                                );
+                            }
                         }
 
-                        let _ = ctx.bot().answer_callback_query(q.id.clone()).await;
+                        if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
+                            tracing::warn!(error=?e, "answer_callback_query failed (CANCEL)");
+                        }
 
                         return Ok(());
                     }
 
                     if data == callback::HIDE {
-                        let _ = ctx.bot().answer_callback_query(q.id.clone()).await;
+                        if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
+                            tracing::warn!(error=?e, "answer_callback_query failed (HIDE)");
+                        }
 
                         if let Some(msg) = &q.message {
-                            let _ = ctx.bot().delete_message(msg.chat().id, msg.id()).await;
+                            if let Err(e) = ctx.bot().delete_message(msg.chat().id, msg.id()).await
+                            {
+                                tracing::warn!(
+                                    error=?e,
+                                    chat=%msg.chat().id.0,
+                                    mid=%msg.id().0,
+                                    "delete message failed (HIDE)"
+                                );
+                            }
                         }
 
                         return Ok(());
                     }
 
                     if data == callback::DISABLE_INFO_NOTIFICATIONS {
-                        let _ = ctx.bot().answer_callback_query(q.id.clone()).await;
+                        if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
+                            tracing::warn!(error=?e, "answer_callback_query failed (DISABLE_INFO_NOTIFICATIONS)");
+                        }
+
                         return Ok(());
                     }
                 }
@@ -177,12 +200,14 @@ where
                 }
 
                 // Unknown fallback
-                let _ = ctx
+                if let Err(e) = ctx
                     .bot()
                     .answer_callback_query(q.id.clone())
                     .text("This menu is no longer active, enter /start command and open this section again.")
                     .show_alert(true)
-                    .await;
+                    .await {
+                    tracing::warn!(error=?e, "answer_callback_query failed (unknown fallback)");
+                }
             }
         }
 
