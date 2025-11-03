@@ -3,6 +3,8 @@ pub mod redis;
 pub mod store;
 
 use crate::compose::SceneLookup;
+use crate::metrics;
+use crate::scene::RenderPolicy;
 use crate::session::UiStore;
 use crate::ui::message;
 use crate::ui::prelude::UiRequester;
@@ -62,7 +64,7 @@ impl<M: Store> Viewport<M> {
         chat: ChatId,
         d: &Dialogue<D, S>,
         view: &crate::scene::View,
-        policy: crate::scene::RenderPolicy,
+        policy: RenderPolicy,
         meta: Option<MetaSpec>,
     ) -> anyhow::Result<()>
     where
@@ -76,8 +78,18 @@ impl<M: Store> Viewport<M> {
     {
         let mut mid_opt: Option<MessageId> = None;
 
+        #[cfg(feature = "metrics")]
+        {
+            let pol: &'static str = match policy {
+                RenderPolicy::EditOrReply => "edit_or_reply",
+                RenderPolicy::EditOnly => "edit_only",
+                RenderPolicy::SendNew => "send_new",
+            };
+            metrics::apply_view(pol);
+        }
+
         match policy {
-            crate::scene::RenderPolicy::EditOrReply => {
+            RenderPolicy::EditOrReply => {
                 let mid = message::refresh_or_reply_with(
                     bot,
                     chat,
@@ -92,7 +104,7 @@ impl<M: Store> Viewport<M> {
                 .await?;
                 mid_opt = Some(mid);
             }
-            crate::scene::RenderPolicy::EditOnly => {
+            RenderPolicy::EditOnly => {
                 // Edit existing last action
                 // message only; never send new.
                 if let Ok(s) = d.get_or_default().await {
@@ -137,11 +149,13 @@ impl<M: Store> Viewport<M> {
                     }
                 }
             }
-            crate::scene::RenderPolicy::SendNew => {
-                // Clear previous prompt and send a new one with Cancel row if needed
+            RenderPolicy::SendNew => {
+                // Clear previous prompt and send
+                // a new one with Cancel row if needed.
                 message::clear_input_prompt_message(bot, chat, d).await;
 
-                // Build extras + Cancel row when markup is empty (prompt)
+                // Build extras + Cancel row
+                // when markup is empty (prompt).
                 let is_prompt = match &view.markup {
                     Some(mk) => mk.inline_keyboard.is_empty(),
                     None => true,

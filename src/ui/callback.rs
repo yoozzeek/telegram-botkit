@@ -5,7 +5,7 @@ use teloxide::prelude::CallbackQuery;
 pub const BACK: &str = "ui:back";
 pub const CANCEL: &str = "ui:cancel";
 pub const HIDE: &str = "ui:hide";
-pub const DISABLE_INFO_NOTIFICATIONS: &str = "ui:disable_info_notifications";
+pub const DISABLE_NOTIFICATIONS: &str = "ui:disable_notifications";
 
 pub async fn answer_callback_safe<R: UiRequester>(bot: &R, q: &CallbackQuery) {
     if let Err(e) = bot.answer_callback_query(q.id.clone()).await {

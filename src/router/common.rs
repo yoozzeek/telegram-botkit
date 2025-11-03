@@ -1,9 +1,7 @@
-use crate::compose;
 use crate::scene::{Ctx as SceneCtx, Effect, MsgPattern, RenderPolicy, Scene, UiEffect};
 use crate::session::UiStore;
-use crate::ui::message;
-use crate::ui::prelude::UiRequester;
 use crate::viewport::{MetaSpec, SNAP_TTL_SECS, Viewport, store};
+use crate::{compose, metrics, ui};
 
 use super::AppCtx;
 
@@ -17,6 +15,8 @@ use teloxide::types::{
     ParseMode,
 };
 use tracing::instrument;
+use ui::message;
+use ui::prelude::UiRequester;
 
 #[instrument(
     name = "router.ui_effects",
@@ -25,7 +25,7 @@ use tracing::instrument;
 )]
 pub async fn run_ui_effects<R, D, S>(bot: &R, chat: ChatId, d: &Dialogue<D, S>, ui: &Vec<UiEffect>)
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester + Requester,
     <R as Requester>::SendMessage: Send,
     <R as Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
@@ -38,9 +38,9 @@ where
                 let kb = InlineKeyboardMarkup::new(vec![vec![
                     InlineKeyboardButton::callback(
                         "Disable Notifications",
-                        crate::ui::callback::DISABLE_INFO_NOTIFICATIONS,
+                        ui::callback::DISABLE_NOTIFICATIONS,
                     ),
-                    InlineKeyboardButton::callback("Hide", crate::ui::callback::HIDE),
+                    InlineKeyboardButton::callback("Hide", ui::callback::HIDE),
                 ]]);
 
                 let text = message::sanitize_markdown_v2(text_md);
@@ -141,6 +141,11 @@ where
 
     tracing::Span::current().record("restore_path", path_label);
 
+    #[cfg(feature = "metrics")]
+    {
+        metrics::restore_state(S::ID, path_label);
+    }
+
     (state, label)
 }
 
@@ -183,6 +188,11 @@ where
         Effect::NoopWithEffect(_) => "NoopWithEffect",
     };
     tracing::Span::current().record("effect", eff_label);
+
+    #[cfg(feature = "metrics")]
+    {
+        metrics::apply_effect(S::ID, eff_label);
+    }
 
     match eff {
         Effect::Stay(ns, pol) => {
@@ -254,9 +264,31 @@ where
             run_ui_effects(ctx.bot(), ctx.chat(), d, &ui).await;
         }
         Effect::SwitchScene(sw) => {
-            let _ = routes
+            match routes
                 .switch_to_scene_by_id(sw.to_scene_id, ctx, vp, d)
-                .await?;
+                .await
+            {
+                Ok(switched) => {
+                    if !switched {
+                        tracing::warn!(
+                            chat=%ctx.chat().0,
+                            scene_id=%S::ID,
+                            to=%sw.to_scene_id,
+                            "switch_to_scene_by_id returned false"
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        error=?e,
+                        chat=%ctx.chat().0,
+                        to=%sw.to_scene_id,
+                        "switch_to_scene_by_id failed",
+                    );
+
+                    return Err(e);
+                }
+            }
         }
         Effect::Noop => {}
         Effect::NoopWithEffect(ui) => {

@@ -1,11 +1,12 @@
 pub mod common;
 
-use crate::compose;
 use crate::session::UiStore;
 use crate::ui::callback;
+use crate::ui::message::{clear_input_prompt_message, delete_incoming};
 use crate::ui::prelude::UiRequester;
 use crate::viewport::Viewport;
 use crate::viewport::store::Store;
+use crate::{compose, metrics};
 
 use dialogue::Dialogue;
 use std::sync::Arc;
@@ -99,13 +100,21 @@ where
             tracing::Span::current().record("username", u);
         }
 
+        #[cfg(feature = "metrics")]
+        {
+            let kind: &'static str = match ev {
+                AppEvent::Msg(_) => "msg",
+                AppEvent::Cb(_) => "cb",
+            };
+            metrics::router_handle(kind, ctx.chat().0, ctx.user_id());
+        }
+
         match ev {
             AppEvent::Msg(m) => {
                 // Commands
                 if let Some(text) = m.text() {
                     if text.trim_start().starts_with("/start") {
-                        // Choose a default landing scene: caller can switch after
-                        // For framework simplicity do nothing here; app chooses behaviour.
+                        // TODO: app chooses behaviour.
                     }
                 }
 
@@ -133,18 +142,15 @@ where
                     return Ok(());
                 }
 
-                // Fallback: delete noise
-                let _deleted = crate::ui::message::delete_incoming(ctx.bot(), m).await;
+                let _deleted = delete_incoming(ctx.bot(), m).await;
             }
             AppEvent::Cb(q) => {
-                // Activate viewport and set context
                 vp.activate_from_callback(d, q, self.routes.as_ref()).await;
 
                 // UI actions first
                 if let Some(data) = q.data.as_deref() {
                     if data == callback::CANCEL {
-                        crate::ui::message::clear_input_prompt_message(ctx.bot(), ctx.chat(), d)
-                            .await;
+                        clear_input_prompt_message(ctx.bot(), ctx.chat(), d).await;
 
                         if let Some(msg) = &q.message {
                             if let Err(e) = ctx.bot().delete_message(msg.chat().id, msg.id()).await
@@ -185,9 +191,9 @@ where
                         return Ok(());
                     }
 
-                    if data == callback::DISABLE_INFO_NOTIFICATIONS {
+                    if data == callback::DISABLE_NOTIFICATIONS {
                         if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
-                            tracing::warn!(error=?e, "answer_callback_query failed (DISABLE_INFO_NOTIFICATIONS)");
+                            tracing::warn!(error=?e, "answer_callback_query failed (DISABLE_NOTIFICATIONS)");
                         }
 
                         return Ok(());
