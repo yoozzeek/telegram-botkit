@@ -1,19 +1,21 @@
 pub mod common;
 
+use crate::compose;
 use crate::session::UiStore;
 use crate::ui::callback;
 use crate::ui::message::{clear_input_prompt_message, delete_incoming};
 use crate::ui::prelude::UiRequester;
 use crate::viewport::Viewport;
 use crate::viewport::store::Store;
-use crate::{compose, metrics};
 
 use dialogue::Dialogue;
 use std::sync::Arc;
-use teloxide::dispatching::dialogue;
-use teloxide::payloads::AnswerCallbackQuerySetters;
-use teloxide::prelude::Requester;
-use teloxide::types::{CallbackQuery, ChatId, Message};
+use teloxide::{
+    dispatching::dialogue,
+    payloads::AnswerCallbackQuerySetters,
+    prelude::Requester,
+    types::{CallbackQuery, ChatId, Message},
+};
 
 pub enum AppEvent<'a> {
     Msg(&'a Message),
@@ -106,7 +108,7 @@ where
                 AppEvent::Msg(_) => "msg",
                 AppEvent::Cb(_) => "cb",
             };
-            metrics::router_handle(kind, ctx.chat().0, ctx.user_id());
+            crate::metrics::router_handle(kind, ctx.chat().0, ctx.user_id());
         }
 
         match ev {

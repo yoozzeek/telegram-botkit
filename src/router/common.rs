@@ -1,7 +1,8 @@
+use crate::compose;
 use crate::scene::{Ctx as SceneCtx, Effect, MsgPattern, RenderPolicy, Scene, UiEffect};
 use crate::session::UiStore;
+use crate::ui::{callback, message, prelude::UiRequester};
 use crate::viewport::{MetaSpec, SNAP_TTL_SECS, Viewport, store};
-use crate::{compose, metrics, ui};
 
 use super::AppCtx;
 
@@ -15,8 +16,6 @@ use teloxide::types::{
     ParseMode,
 };
 use tracing::instrument;
-use ui::message;
-use ui::prelude::UiRequester;
 
 #[instrument(
     name = "router.ui_effects",
@@ -38,9 +37,9 @@ where
                 let kb = InlineKeyboardMarkup::new(vec![vec![
                     InlineKeyboardButton::callback(
                         "Disable Notifications",
-                        ui::callback::DISABLE_NOTIFICATIONS,
+                        callback::DISABLE_NOTIFICATIONS,
                     ),
-                    InlineKeyboardButton::callback("Hide", ui::callback::HIDE),
+                    InlineKeyboardButton::callback("Hide", callback::HIDE),
                 ]]);
 
                 let text = message::sanitize_markdown_v2(text_md);
@@ -143,7 +142,7 @@ where
 
     #[cfg(feature = "metrics")]
     {
-        metrics::restore_state(S::ID, path_label);
+        crate::metrics::restore_state(S::ID, path_label);
     }
 
     (state, label)
@@ -191,7 +190,7 @@ where
 
     #[cfg(feature = "metrics")]
     {
-        metrics::apply_effect(S::ID, eff_label);
+        crate::metrics::apply_effect(S::ID, eff_label);
     }
 
     match eff {
@@ -417,7 +416,7 @@ where
 type EntryFuture<'a, S> = Pin<Box<dyn Future<Output = Option<<S as Scene>::State>> + Send + 'a>>;
 
 pub type EntryHandler<S, C, D, St> = for<'a> fn(
-    &'a <C as super::AppCtx>::Bot,
+    &'a <C as AppCtx>::Bot,
     &'a Dialogue<D, St>,
     &'a Message,
     &'a <S as Scene>::State,

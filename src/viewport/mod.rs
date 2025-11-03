@@ -3,7 +3,6 @@ pub mod redis;
 pub mod store;
 
 use crate::compose::SceneLookup;
-use crate::metrics;
 use crate::scene::RenderPolicy;
 use crate::session::UiStore;
 use crate::ui::message;
@@ -11,12 +10,12 @@ use crate::ui::prelude::UiRequester;
 
 use dialogue::Dialogue;
 use store::Store;
-use teloxide::dispatching::dialogue;
-use teloxide::payloads::{EditMessageTextSetters, SendMessageSetters};
-use teloxide::requests;
-use teloxide::sugar::request::RequestReplyExt;
-use teloxide::types::{
-    ChatId, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageId,
+use teloxide::{
+    dispatching::dialogue,
+    payloads::{EditMessageTextSetters, SendMessageSetters},
+    prelude::{CallbackQuery, Requester},
+    sugar::request::RequestReplyExt,
+    types::{ChatId, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageId},
 };
 use tracing::instrument;
 
@@ -68,10 +67,10 @@ impl<M: Store> Viewport<M> {
         meta: Option<MetaSpec>,
     ) -> anyhow::Result<()>
     where
-        R: UiRequester + requests::Requester,
-        <R as requests::Requester>::SendMessage: Send,
-        <R as requests::Requester>::EditMessageText: Send,
-        <R as requests::Requester>::DeleteMessage: Send,
+        R: UiRequester + Requester,
+        <R as Requester>::SendMessage: Send,
+        <R as Requester>::EditMessageText: Send,
+        <R as Requester>::DeleteMessage: Send,
         D: UiStore + Send + Sync,
         S: dialogue::Storage<D> + Send + Sync,
         <S as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
@@ -85,7 +84,7 @@ impl<M: Store> Viewport<M> {
                 RenderPolicy::EditOnly => "edit_only",
                 RenderPolicy::SendNew => "send_new",
             };
-            metrics::apply_view(pol);
+            crate::metrics::apply_view(pol);
         }
 
         match policy {
@@ -302,7 +301,7 @@ impl<M: Store> Viewport<M> {
     pub async fn activate_from_callback<D, S>(
         &self,
         d: &Dialogue<D, S>,
-        q: &teloxide::types::CallbackQuery,
+        q: &CallbackQuery,
         lookup: &dyn SceneLookup,
     ) where
         D: UiStore,
