@@ -6,7 +6,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache2-yellow.svg)](./LICENSE)
 
 Botkit it's minimal, declarative UI kit that you or your AI agent need
-for building reliable A+ Telegram bots on Rust on top of Teloxide.
+for building reliable A+ Telegram bots on Rust. Built on top of Teloxide.
 
 - Declarative scenes (Svelte/React‑vibe): you render views, botkit applies them.
 - Tiny router + viewport keep menus interactive (edit/reply/new, prompts) and can persist per‑message meta (Redis).

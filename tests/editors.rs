@@ -63,7 +63,12 @@ async fn u64_valid_no_text_false() {
     }
 
     let m_no_text: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 4, "date": 0, "chat": {"id": 1, "type": "private"}
+        "message_id": 4,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        }
     }))
     .unwrap();
 
@@ -96,7 +101,13 @@ async fn u64_valid_ok() {
     }
 
     let m_ok: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 5, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "123"
+        "message_id": 5,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "123"
     }))
     .unwrap();
 
@@ -128,7 +139,13 @@ async fn time_min_false() {
     }
 
     let m_bad: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 6, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "0s"
+        "message_id": 6,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "0s"
     }))
     .unwrap();
 
@@ -160,8 +177,15 @@ async fn base58_ok() {
     }
 
     let m58_ok: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 7, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "11111111111111111111111111111111"
-    })).unwrap();
+        "message_id": 7,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "11111111111111111111111111111111"
+    }))
+    .unwrap();
     let mut captured: Option<String> = None;
 
     let ok = editors::edit_base58_address(
@@ -192,7 +216,13 @@ async fn base58_bad() {
     }
 
     let m58_bad: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 8, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "illeg@l"
+        "message_id": 8,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "illeg@l"
     }))
     .unwrap();
 
@@ -216,7 +246,13 @@ async fn pct_pos_ok() {
     }
 
     let mpos: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 9, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "15"
+        "message_id": 9,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "15"
     }))
     .unwrap();
 
@@ -251,7 +287,13 @@ async fn pct_pos_neg_sign_false() {
     }
 
     let mpos_bad: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 10, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "-5"
+        "message_id": 10,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "-5"
     }))
     .unwrap();
 
@@ -283,7 +325,13 @@ async fn pct_neg_ok() {
     }
 
     let mneg: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 11, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "-3"
+        "message_id": 11,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "-3"
     }))
     .unwrap();
     let mut got_bp2: Option<u64> = None;
@@ -317,7 +365,13 @@ async fn pct_neg_plus_sign_false() {
     }
 
     let mneg_bad: teloxide::types::Message = serde_json::from_value(serde_json::json!({
-        "message_id": 12, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "+5"
+        "message_id": 12,
+        "date": 0,
+        "chat": {
+            "id": 1,
+            "type": "private"
+        },
+        "text": "+5"
     }))
     .unwrap();
 
