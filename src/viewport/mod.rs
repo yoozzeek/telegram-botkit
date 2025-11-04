@@ -2,7 +2,7 @@
 pub mod redis;
 pub mod store;
 
-use crate::compose::SceneLookup;
+use crate::router::compose::SceneLookup;
 use crate::scene::RenderPolicy;
 use crate::session::UiStore;
 use crate::ui::message;

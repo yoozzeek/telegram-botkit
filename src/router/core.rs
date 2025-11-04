@@ -1,4 +1,4 @@
-use crate::compose;
+use crate::router::compose;
 use crate::scene::{Ctx as SceneCtx, Effect, MsgPattern, RenderPolicy, Scene, UiEffect};
 use crate::session::UiStore;
 use crate::ui::{callback, message, prelude::UiRequester};
@@ -169,7 +169,7 @@ pub async fn apply_effect<S, C, D, St, M, R>(
 ) -> anyhow::Result<()>
 where
     S: Scene,
-    C: AppCtx + Sync,
+    C: AppCtx + Send + Sync,
     <C::Bot as Requester>::SendMessage: Send,
     <C::Bot as Requester>::EditMessageText: Send,
     <C::Bot as Requester>::DeleteMessage: Send,
@@ -177,7 +177,7 @@ where
     St: dialogue::Storage<D> + Send + Sync,
     M: store::Store + Send + Sync,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
-    R: compose::RouteDispatch,
+    R: compose::RouterDispatch<C, D, St, M>,
 {
     let eff_label: &str = match &eff {
         Effect::Stay(_, _) => "Stay",
@@ -381,7 +381,7 @@ pub async fn run_cb<S, C, D, St, M, R>(
 ) -> anyhow::Result<bool>
 where
     S: Scene,
-    C: AppCtx + Sync,
+    C: AppCtx + Send + Sync,
     <C::Bot as Requester>::AnswerCallbackQuery: Send,
     <C::Bot as Requester>::SendMessage: Send,
     <C::Bot as Requester>::EditMessageText: Send,
@@ -390,7 +390,7 @@ where
     St: dialogue::Storage<D> + Send + Sync,
     M: store::Store + Send + Sync,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
-    R: compose::RouteDispatch,
+    R: compose::RouterDispatch<C, D, St, M>,
 {
     let sctx = SceneCtx {
         user_id: ctx.user_id(),
@@ -442,7 +442,7 @@ pub async fn run_msg<S, C, D, St, M, R>(
 ) -> anyhow::Result<bool>
 where
     S: Scene,
-    C: AppCtx + Sync,
+    C: AppCtx + Send + Sync,
     <C::Bot as Requester>::SendMessage: Send,
     <C::Bot as Requester>::EditMessageText: Send,
     <C::Bot as Requester>::DeleteMessage: Send,
@@ -450,7 +450,7 @@ where
     St: dialogue::Storage<D> + Send + Sync,
     M: store::Store + Send + Sync,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
-    R: compose::RouteDispatch,
+    R: compose::RouterDispatch<C, D, St, M>,
 {
     let sctx = SceneCtx {
         user_id: ctx.user_id(),

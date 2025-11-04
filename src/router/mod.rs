@@ -1,6 +1,6 @@
-pub mod common;
+pub mod compose;
+pub mod core;
 
-use crate::compose;
 use crate::session::UiStore;
 use crate::ui::callback;
 use crate::ui::message::{clear_input_prompt_message, delete_incoming};
@@ -67,10 +67,7 @@ impl<R> Clone for Router<R> {
     }
 }
 
-impl<R> Router<R>
-where
-    R: compose::RouteDispatch,
-{
+impl<R> Router<R> {
     #[tracing::instrument(
         name = "router.handle",
         skip(self, ctx, vp, d, ev),
@@ -88,10 +85,11 @@ where
         ev: AppEvent<'_>,
     ) -> anyhow::Result<()>
     where
-        C: AppCtx + Sync,
+        C: AppCtx + Send + Sync,
         D: UiStore + Send + Sync,
         S: dialogue::Storage<D> + Send + Sync,
         M: Store + Send + Sync,
+        R: compose::RouterDispatch<C, D, S, M> + compose::SceneLookup,
         <C::Bot as Requester>::AnswerCallbackQuery: Send,
         <C::Bot as Requester>::DeleteMessage: Send,
         <C::Bot as Requester>::SendMessage: Send,

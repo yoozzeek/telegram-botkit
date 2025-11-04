@@ -1,4 +1,3 @@
-pub mod compose;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod router;
