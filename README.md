@@ -14,9 +14,10 @@ for building reliable A+ Telegram bots on Rust. Built on top of Teloxide.
 
 ## Roadmap
 
-- [x] Router core and `routes!` macros
+- [x] Router core and common helpers
 - [x] Viewport with in-memory and redis stores
 - [x] UIKit with editors, formatters, callback and message helpers
+- [ ] Router composer
 - [ ] Guidelines & More examples
 - [ ] Run live demo bot
 
