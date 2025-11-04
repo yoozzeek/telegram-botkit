@@ -1,6 +1,6 @@
 use crate::prelude::UiStore;
 use crate::router::AppCtx;
-use crate::router::core::{EntryHandler as MsgEntryHandler, init_and_render, run_cb, run_msg};
+use crate::router::core::{CbEntryDyn, MsgEntryDyn, init_and_render, run_cb, run_msg};
 use crate::scene::{CbKey, Scene};
 use crate::viewport::{Viewport, store};
 
@@ -113,7 +113,8 @@ where
     M: store::Store + Send + Sync,
 {
     scene: S,
-    msg_entry: Option<MsgEntryHandler<S, C, D, St>>, // optional message entry
+    msg_entry: Option<Box<MsgEntryDyn<S, C, D, St>>>,
+    cb_entry: Option<Box<CbEntryDyn<S, C, D, St>>>,
     _pd: PhantomData<(C, D, St, M)>,
 }
 
@@ -175,7 +176,16 @@ where
         d: &Dialogue<D, St>,
         m: &Message,
     ) -> anyhow::Result<bool> {
-        run_msg(&self.scene, router, self.msg_entry, ctx, vp, d, m).await
+        run_msg(
+            &self.scene,
+            router,
+            self.msg_entry.as_deref(),
+            ctx,
+            vp,
+            d,
+            m,
+        )
+        .await
     }
 
     async fn handle_cb(
@@ -186,7 +196,7 @@ where
         d: &Dialogue<D, St>,
         q: &CallbackQuery,
     ) -> anyhow::Result<bool> {
-        run_cb(&self.scene, router, ctx, vp, d, q).await
+        run_cb(&self.scene, router, self.cb_entry.as_deref(), ctx, vp, d, q).await
     }
 
     async fn init_and_render(
@@ -382,6 +392,7 @@ where
         let route = Box::new(SceneRoute::<S, C, D, St, M> {
             scene: sc.scene,
             msg_entry: sc.msg_entry,
+            cb_entry: sc.cb_entry,
             _pd: PhantomData,
         });
 
@@ -414,20 +425,48 @@ where
     C: AppCtx,
 {
     scene: S,
-    msg_entry: Option<MsgEntryHandler<S, C, D, St>>, // optional
+    msg_entry: Option<Box<MsgEntryDyn<S, C, D, St>>>,
+    cb_entry: Option<Box<CbEntryDyn<S, C, D, St>>>,
     _pd: PhantomData<(C, D, St, M)>,
 }
 
 impl<S, C, D, St, M> SceneBuilder<S, C, D, St, M>
 where
-    S: Scene,
-    C: AppCtx + Send + Sync,
-    D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    S: Scene + Send + Sync + 'static,
+    C: AppCtx + Send + Sync + 'static,
+    D: UiStore + Send + Sync + 'static,
+    St: dialogue::Storage<D> + Send + Sync + 'static,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
-    pub fn msg_entry(mut self, h: MsgEntryHandler<S, C, D, St>) -> Self {
-        self.msg_entry = Some(h);
+    pub fn msg_entry<F>(mut self, f: F) -> Self
+    where
+        for<'a> F: Fn(
+                &'a <C as AppCtx>::Bot,
+                &'a Dialogue<D, St>,
+                &'a Message,
+                &'a <S as Scene>::State,
+            ) -> crate::router::core::EntryFuture<'a, S>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.msg_entry = Some(Box::new(f));
+        self
+    }
+
+    pub fn cb_entry<F>(mut self, f: F) -> Self
+    where
+        for<'a> F: Fn(
+                &'a <C as AppCtx>::Bot,
+                &'a Dialogue<D, St>,
+                &'a CallbackQuery,
+                &'a <S as Scene>::State,
+            ) -> crate::router::core::EntryFuture<'a, S>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.cb_entry = Some(Box::new(f));
         self
     }
 }
@@ -443,6 +482,7 @@ where
     SceneBuilder {
         scene: S::default(),
         msg_entry: None,
+        cb_entry: None,
         _pd: PhantomData,
     }
 }
@@ -458,6 +498,7 @@ where
     SceneBuilder {
         scene,
         msg_entry: None,
+        cb_entry: None,
         _pd: PhantomData,
     }
 }

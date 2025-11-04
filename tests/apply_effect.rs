@@ -17,6 +17,7 @@ use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use teloxide::prelude::Message;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
@@ -101,33 +102,15 @@ impl AppCtx for TestAppCtx {
 
 struct TestScene;
 
-// Dummy message-entry handler used by compose builder
-async fn dummy_msg_entry<C, D, St>(
-    _bot: &<C as AppCtx>::Bot,
-    _d: &Dialogue<D, St>,
-    _m: &teloxide::types::Message,
+// Dummy message-entry handler
+// used by compose builder (monomorphic)
+async fn dummy_msg_entry(
+    _bot: &Bot,
+    _d: &Dialogue<SimpleSession, InMemStorage<SimpleSession>>,
+    _m: &Message,
     _cur: &State,
-) -> Option<State>
-where
-    C: AppCtx,
-    D: UiStore,
-    St: teloxide::dispatching::dialogue::Storage<D>,
-{
+) -> Option<State> {
     None
-}
-
-fn dummy_msg_entry_ts<'a, C, D, St>(
-    bot: &'a <C as AppCtx>::Bot,
-    d: &'a Dialogue<D, St>,
-    m: &'a teloxide::types::Message,
-    cur: &'a State,
-) -> std::pin::Pin<Box<dyn Future<Output = Option<State>> + Send + 'a>>
-where
-    C: AppCtx + 'static,
-    D: UiStore + Send + Sync,
-    St: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
-{
-    Box::pin(dummy_msg_entry::<C, D, St>(bot, d, m, cur))
 }
 
 impl Default for TestScene {
@@ -202,7 +185,7 @@ async fn apply_effect_stay_edit_or_reply_sets_last_message() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(|b, d, m, s| Box::pin(dummy_msg_entry(b, d, m, s))),
     )
     .route(
         telegram_botkit::router::compose::Builder::<
@@ -211,7 +194,7 @@ async fn apply_effect_stay_edit_or_reply_sets_last_message() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene2>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(|b, d, m, s| Box::pin(dummy_msg_entry(b, d, m, s))),
     )
     .build()
     .unwrap();
@@ -297,7 +280,7 @@ async fn apply_effect_stay_with_ui_effects_clears_prompt() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(|b, d, m, s| Box::pin(dummy_msg_entry(b, d, m, s))),
     )
     .build()
     .unwrap();
@@ -351,7 +334,7 @@ async fn apply_effect_edit_only_does_not_create_new_message() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(|b, d, m, s| Box::pin(dummy_msg_entry(b, d, m, s))),
     )
     .build()
     .unwrap();
@@ -363,6 +346,7 @@ async fn apply_effect_edit_only_does_not_create_new_message() {
         parse_mode: None,
         disable_web_page_preview: None,
     };
+
     vp.apply_view(
         &ctx.bot,
         ctx.chat,
@@ -373,6 +357,7 @@ async fn apply_effect_edit_only_does_not_create_new_message() {
     )
     .await
     .unwrap();
+
     let before = d
         .get_or_default()
         .await
@@ -420,7 +405,7 @@ async fn apply_effect_noop_does_not_change_last_message() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(|b, d, m, s| Box::pin(dummy_msg_entry(b, d, m, s))),
     )
     .build()
     .unwrap();
@@ -433,15 +418,18 @@ async fn apply_effect_noop_does_not_change_last_message() {
         .await
         .unwrap()
         .ui_get_last_action_message_id();
+
     apply_effect(&routes, &TestScene, &ctx, &vp, &d, &sctx, Effect::Noop)
         .await
         .unwrap();
+
     let after = d
         .get_or_default()
         .await
         .unwrap()
         .ui_get_last_action_message_id();
     assert_eq!(before, after);
+
     let _ = shutdown.send(());
 }
 
@@ -470,7 +458,7 @@ async fn apply_effect_switch_scene_sets_active_scene_id() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(|b, d, m, s| Box::pin(dummy_msg_entry(b, d, m, s))),
     )
     .route(
         telegram_botkit::router::compose::Builder::<
@@ -479,7 +467,12 @@ async fn apply_effect_switch_scene_sets_active_scene_id() {
             InMemStorage<SimpleSession>,
             NoopStore,
         >::scene::<TestScene2>()
-        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+        .msg_entry(
+            |b: &Bot,
+             d: &Dialogue<SimpleSession, InMemStorage<SimpleSession>>,
+             m: &Message,
+             s: &State| Box::pin(dummy_msg_entry(b, d, m, s)),
+        ),
     )
     .build()
     .unwrap();
@@ -490,11 +483,14 @@ async fn apply_effect_switch_scene_sets_active_scene_id() {
     let eff = Effect::SwitchScene(SceneSwitch {
         to_scene_id: TestScene2::ID,
     });
+
     apply_effect(&routes, &TestScene, &ctx, &vp, &d, &sctx, eff)
         .await
         .unwrap();
+
     let st = d.get_or_default().await.unwrap();
     assert_eq!(st.ui_get_active_scene_id().as_deref(), Some(TestScene2::ID));
+
     let _ = shutdown.send(());
 }
 

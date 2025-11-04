@@ -17,6 +17,34 @@ use teloxide::types::{
 };
 use tracing::instrument;
 
+pub type EntryFuture<'a, S> =
+    Pin<Box<dyn Future<Output = Option<<S as Scene>::State>> + Send + 'a>>;
+
+pub type EntryHandler<S, C, D, St> = for<'a> fn(
+    &'a <C as AppCtx>::Bot,
+    &'a Dialogue<D, St>,
+    &'a Message,
+    &'a <S as Scene>::State,
+) -> EntryFuture<'a, S>;
+
+pub type MsgEntryDyn<S, C, D, St> = dyn for<'a> Fn(
+        &'a <C as AppCtx>::Bot,
+        &'a Dialogue<D, St>,
+        &'a Message,
+        &'a <S as Scene>::State,
+    ) -> EntryFuture<'a, S>
+    + Send
+    + Sync;
+
+pub type CbEntryDyn<S, C, D, St> = dyn for<'a> Fn(
+        &'a <C as AppCtx>::Bot,
+        &'a Dialogue<D, St>,
+        &'a CallbackQuery,
+        &'a <S as Scene>::State,
+    ) -> EntryFuture<'a, S>
+    + Send
+    + Sync;
+
 #[instrument(
     name = "router.ui_effects",
     skip(bot, d, ui),
@@ -364,7 +392,7 @@ where
 
 #[instrument(
     name = "router.run_cb",
-    skip(scene, routes, ctx, vp, d, q),
+    skip(scene, routes, entry, ctx, vp, d, q),
     fields(
         scene_id = %S::ID,
         chat_id = %ctx.chat().0,
@@ -374,6 +402,7 @@ where
 pub async fn run_cb<S, C, D, St, M, R>(
     scene: &S,
     routes: &R,
+    entry: Option<&CbEntryDyn<S, C, D, St>>,
     ctx: &C,
     vp: &Viewport<M>,
     d: &Dialogue<D, St>,
@@ -396,6 +425,38 @@ where
         user_id: ctx.user_id(),
     };
 
+    if let Some(handle) = entry {
+        let source = q.message.as_ref().map(|m| (m.chat().id, m.id()));
+        let (state, _rpath) = restore_state(scene, vp, d, &sctx, source).await;
+
+        if let Some(ns) = handle(ctx.bot(), d, q, &state).await {
+            let view = scene.render(&sctx, &ns);
+            let snap = scene.snapshot(&ns);
+
+            vp.apply_view(
+                ctx.bot(),
+                ctx.chat(),
+                d,
+                &view,
+                RenderPolicy::EditOrReply,
+                Some(MetaSpec {
+                    scene_id: S::ID,
+                    scene_version: S::VERSION,
+                    state_json: snap.0,
+                    state_ref: snap.1,
+                    ttl_secs: SNAP_TTL_SECS,
+                }),
+            )
+            .await?;
+
+            if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
+                tracing::warn!(error=?e, chat=%ctx.chat().0, "answer_callback_query failed (cb_entry)");
+            }
+
+            return Ok(true);
+        }
+    }
+
     if let Some(ev) = scene.bindings().cb.iter().find_map(|b| (b.to_event)(q)) {
         let source = q.message.as_ref().map(|m| (m.chat().id, m.id()));
         let (state, _rpath) = restore_state(scene, vp, d, &sctx, source).await;
@@ -413,15 +474,6 @@ where
     Ok(false)
 }
 
-type EntryFuture<'a, S> = Pin<Box<dyn Future<Output = Option<<S as Scene>::State>> + Send + 'a>>;
-
-pub type EntryHandler<S, C, D, St> = for<'a> fn(
-    &'a <C as AppCtx>::Bot,
-    &'a Dialogue<D, St>,
-    &'a Message,
-    &'a <S as Scene>::State,
-) -> EntryFuture<'a, S>;
-
 #[instrument(
     name = "router.run_msg",
     skip(scene, routes, entry, ctx, vp, d, m),
@@ -434,7 +486,7 @@ pub type EntryHandler<S, C, D, St> = for<'a> fn(
 pub async fn run_msg<S, C, D, St, M, R>(
     scene: &S,
     routes: &R,
-    entry: Option<EntryHandler<S, C, D, St>>,
+    entry: Option<&MsgEntryDyn<S, C, D, St>>,
     ctx: &C,
     vp: &Viewport<M>,
     d: &Dialogue<D, St>,
