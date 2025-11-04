@@ -1,5 +1,5 @@
 use telegram_botkit::router::AppCtx;
-use telegram_botkit::router::common::apply_effect;
+use telegram_botkit::router::core::apply_effect;
 use telegram_botkit::scene::*;
 use telegram_botkit::session::{SimpleSession, UiStore};
 use telegram_botkit::viewport::{MetaSpec, SNAP_TTL_SECS, Viewport, store::NoopStore};
@@ -101,6 +101,41 @@ impl AppCtx for TestAppCtx {
 
 struct TestScene;
 
+// Dummy message-entry handler used by compose builder
+async fn dummy_msg_entry<C, D, St>(
+    _bot: &<C as AppCtx>::Bot,
+    _d: &Dialogue<D, St>,
+    _m: &teloxide::types::Message,
+    _cur: &State,
+) -> Option<State>
+where
+    C: AppCtx,
+    D: UiStore,
+    St: teloxide::dispatching::dialogue::Storage<D>,
+{
+    None
+}
+
+fn dummy_msg_entry_ts<'a, C, D, St>(
+    bot: &'a <C as AppCtx>::Bot,
+    d: &'a Dialogue<D, St>,
+    m: &'a teloxide::types::Message,
+    cur: &'a State,
+) -> std::pin::Pin<Box<dyn Future<Output = Option<State>> + Send + 'a>>
+where
+    C: AppCtx + 'static,
+    D: UiStore + Send + Sync,
+    St: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+{
+    Box::pin(dummy_msg_entry::<C, D, St>(bot, d, m, cur))
+}
+
+impl Default for TestScene {
+    fn default() -> Self {
+        TestScene
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 enum State {
     Root,
@@ -154,7 +189,33 @@ async fn apply_effect_stay_edit_or_reply_sets_last_message() {
         chat: ChatId(1),
     };
 
-    let routes = telegram_botkit::routes![TestScene];
+    let routes = telegram_botkit::router::compose::Builder::<
+        TestAppCtx,
+        SimpleSession,
+        InMemStorage<SimpleSession>,
+        NoopStore,
+    >::new()
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene2>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .build()
+    .unwrap();
+
     let sctx = Ctx {
         user_id: ctx.user_id(),
     };
@@ -171,6 +232,13 @@ async fn apply_effect_stay_edit_or_reply_sets_last_message() {
 }
 
 struct TestScene2;
+
+impl Default for TestScene2 {
+    fn default() -> Self {
+        TestScene2
+    }
+}
+
 impl Scene for TestScene2 {
     const VERSION: u16 = 1;
     const ID: &'static str = "test_scene2";
@@ -215,7 +283,24 @@ async fn apply_effect_stay_with_ui_effects_clears_prompt() {
         bot,
         chat: ChatId(1),
     };
-    let routes = telegram_botkit::routes![TestScene];
+
+    let routes = telegram_botkit::router::compose::Builder::<
+        TestAppCtx,
+        SimpleSession,
+        InMemStorage<SimpleSession>,
+        NoopStore,
+    >::new()
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .build()
+    .unwrap();
 
     // preset prompt
     let mut s = d.get_or_default().await.unwrap();
@@ -252,7 +337,24 @@ async fn apply_effect_edit_only_does_not_create_new_message() {
         bot,
         chat: ChatId(1),
     };
-    let routes = telegram_botkit::routes![TestScene];
+
+    let routes = telegram_botkit::router::compose::Builder::<
+        TestAppCtx,
+        SimpleSession,
+        InMemStorage<SimpleSession>,
+        NoopStore,
+    >::new()
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .build()
+    .unwrap();
 
     // First create a message
     let view = View {
@@ -304,7 +406,24 @@ async fn apply_effect_noop_does_not_change_last_message() {
         bot,
         chat: ChatId(1),
     };
-    let routes = telegram_botkit::routes![TestScene];
+
+    let routes = telegram_botkit::router::compose::Builder::<
+        TestAppCtx,
+        SimpleSession,
+        InMemStorage<SimpleSession>,
+        NoopStore,
+    >::new()
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .build()
+    .unwrap();
 
     let sctx = Ctx {
         user_id: ctx.user_id(),
@@ -337,7 +456,33 @@ async fn apply_effect_switch_scene_sets_active_scene_id() {
         bot,
         chat: ChatId(1),
     };
-    let routes = telegram_botkit::routes![TestScene, TestScene2];
+
+    let routes = telegram_botkit::router::compose::Builder::<
+        TestAppCtx,
+        SimpleSession,
+        InMemStorage<SimpleSession>,
+        NoopStore,
+    >::new()
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .route(
+        telegram_botkit::router::compose::Builder::<
+            TestAppCtx,
+            SimpleSession,
+            InMemStorage<SimpleSession>,
+            NoopStore,
+        >::scene::<TestScene2>()
+        .msg_entry(dummy_msg_entry_ts::<TestAppCtx, SimpleSession, InMemStorage<SimpleSession>>),
+    )
+    .build()
+    .unwrap();
 
     let sctx = Ctx {
         user_id: ctx.user_id(),
