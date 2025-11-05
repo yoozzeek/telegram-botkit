@@ -1,4 +1,5 @@
 use crate::prelude::UiStore;
+use crate::router;
 use crate::router::AppCtx;
 use crate::router::core::{CbEntryDyn, MsgEntryDyn, init_and_render, run_cb, run_msg};
 use crate::scene::{CbKey, Scene};
@@ -6,12 +7,10 @@ use crate::viewport::{Viewport, store};
 
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
-
-use thiserror::Error;
-
 use teloxide::dispatching::dialogue::{self, Dialogue};
 use teloxide::prelude::Requester;
 use teloxide::types::{CallbackQuery, Message};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ComposeError {
@@ -445,7 +444,7 @@ where
                 &'a Dialogue<D, St>,
                 &'a Message,
                 &'a <S as Scene>::State,
-            ) -> crate::router::core::EntryFuture<'a, S>
+            ) -> router::core::EntryFuture<'a, S>
             + Send
             + Sync
             + 'static,
@@ -461,7 +460,7 @@ where
                 &'a Dialogue<D, St>,
                 &'a CallbackQuery,
                 &'a <S as Scene>::State,
-            ) -> crate::router::core::EntryFuture<'a, S>
+            ) -> router::core::EntryFuture<'a, S>
             + Send
             + Sync
             + 'static,
