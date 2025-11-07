@@ -88,7 +88,7 @@ pub trait Scene: Send + Sync + 'static {
     const PREFIX: &'static str;
 
     type State: serde::de::DeserializeOwned + serde::Serialize + Send + Clone + Eq + std::fmt::Debug;
-    type Event: Clone + std::fmt::Debug;
+    type Event: Clone + Send + std::fmt::Debug;
 
     fn init(&self, _ctx: &Ctx) -> Self::State;
 

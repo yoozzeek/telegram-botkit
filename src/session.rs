@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+const MAX_SCENE_MAPPINGS: usize = 128;
+
 pub trait UiStore:
     Clone
     + Default
@@ -65,6 +67,16 @@ impl UiStore for SimpleSession {
     fn ui_set_scene_for_message(&mut self, message_id: i32, scene_json: String) {
         // Keep structure simple; last wins
         self.message_scenes.insert(message_id, scene_json);
+
+        if self.message_scenes.len() > MAX_SCENE_MAPPINGS {
+            let mut keys: Vec<i32> = self.message_scenes.keys().copied().collect();
+            keys.sort_unstable();
+
+            let to_remove = keys.len().saturating_sub(MAX_SCENE_MAPPINGS);
+            for k in keys.into_iter().take(to_remove) {
+                self.message_scenes.remove(&k);
+            }
+        }
     }
 
     fn ui_get_scene_for_message(&self, message_id: i32) -> Option<String> {

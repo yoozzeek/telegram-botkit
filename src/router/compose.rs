@@ -20,7 +20,7 @@ pub enum ComposeError {
     DuplicatePrefix(&'static str),
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 pub trait RouterDispatch<C, D, St, M>: Send + Sync
 where
     C: AppCtx + Send + Sync,
@@ -59,7 +59,7 @@ pub trait SceneLookup: Send + Sync {
     fn find_scene_for_callback(&self, data: &str) -> Option<(&'static str, u16)>;
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 trait RouteFns<C, D, St, M>: Send + Sync
 where
     C: AppCtx + Send + Sync,
@@ -117,7 +117,7 @@ where
     _pd: PhantomData<(C, D, St, M)>,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<S, C, D, St, M> RouteFns<C, D, St, M> for SceneRoute<S, C, D, St, M>
 where
     S: Scene + Send + Sync + 'static,
@@ -256,7 +256,7 @@ where
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<C, D, St, M> RouterDispatch<C, D, St, M> for Routes<C, D, St, M>
 where
     C: AppCtx + Send + Sync,

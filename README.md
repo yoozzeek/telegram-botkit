@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/yoozzeek/telegram-botkit/actions/workflows/ci.yml/badge.svg)](https://github.com/yoozzeek/telegram-botkit/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/telegram-botkit.svg)](https://crates.io/crates/telegram-botkit)
-[![Docs.rs](https://docs.rs/telegram-botkita/badge.svg)](https://docs.rs/telegram-botkit)
+[![Docs.rs](https://docs.rs/telegram-botkit/badge.svg)](https://docs.rs/telegram-botkit)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache2-yellow.svg)](./LICENSE)
 
 Botkit it's minimal, declarative UI kit that you or your AI agent need
@@ -27,8 +27,8 @@ Add to Cargo.toml:
 
 ```toml
 [dependencies]
-telegram-botkit = { version = "0.1", features = ["tracing"] }
-# optional features: "redis", "metrics", "tracing"
+telegram-botkit = { version = "0.1" }
+# optional features: "redis", "metrics"
 ```
 
 ## Abstract scene
