@@ -36,33 +36,51 @@ pub trait AppCtx {
 #[derive(Default)]
 pub struct RouterBuilder<R> {
     routes: Option<Arc<R>>,
+    clear_noise: bool,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum BuildError {
+    #[error("routes not configured")]
+    RoutesNotConfigured,
 }
 
 impl<R> RouterBuilder<R> {
     pub fn new() -> Self {
-        Self { routes: None }
+        Self {
+            routes: None,
+            clear_noise: true,
+        }
     }
 
-    pub fn routes(mut self, routes: R) -> Self {
+    pub fn with_routes(mut self, routes: R) -> Self {
         self.routes = Some(Arc::new(routes));
         self
     }
 
-    pub fn build(self) -> Router<R> {
-        Router {
-            routes: self.routes.expect("routes not configured"),
-        }
+    pub fn with_clear_noise(mut self, on: bool) -> Self {
+        self.clear_noise = on;
+        self
+    }
+
+    pub fn build(self) -> Result<Router<R>, BuildError> {
+        Ok(Router {
+            routes: self.routes.ok_or(BuildError::RoutesNotConfigured)?,
+            clear_noise: self.clear_noise,
+        })
     }
 }
 
 pub struct Router<R> {
     routes: Arc<R>,
+    clear_noise: bool,
 }
 
 impl<R> Clone for Router<R> {
     fn clone(&self) -> Self {
         Self {
             routes: Arc::clone(&self.routes),
+            clear_noise: self.clear_noise,
         }
     }
 }
@@ -142,10 +160,24 @@ impl<R> Router<R> {
                     return Ok(());
                 }
 
-                let _deleted = delete_incoming(ctx.bot(), m).await;
+                if self.clear_noise {
+                    let _deleted = delete_incoming(ctx.bot(), m).await;
+                }
             }
             AppEvent::Cb(q) => {
                 vp.activate_from_callback(d, q, self.routes.as_ref()).await;
+
+                // Validate callback payload
+                // size/charset to reduce abuse.
+                if let Some(data) = q.data.as_deref() {
+                    if data.len() > 64 || !data.is_ascii() {
+                        if let Err(e) = ctx.bot().answer_callback_query(q.id.clone()).await {
+                            tracing::warn!(error=?e, "answer_callback_query failed (invalid callback)");
+                        }
+
+                        return Ok(());
+                    }
+                }
 
                 // UI actions first
                 if let Some(data) = q.data.as_deref() {
