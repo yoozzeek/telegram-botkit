@@ -1,43 +1,75 @@
-use std::sync::Arc;
+use opentelemetry::KeyValue;
+use opentelemetry::metrics::{Counter, Meter};
 use std::sync::OnceLock;
 
-pub trait MetricsHook: Send + Sync + 'static {
-    fn router_handle(&self, _event: &'static str, _chat: i64, _user: i64) {}
-    fn restore_state(&self, _scene_id: &'static str, _path: &'static str) {}
-    fn apply_effect(&self, _scene_id: &'static str, _effect: &'static str) {}
-    fn apply_view(&self, _policy: &'static str) {}
+fn meter() -> Meter {
+    opentelemetry::global::meter("telegram-botkit")
 }
 
-static METRICS_HOOK: OnceLock<Arc<dyn MetricsHook>> = OnceLock::new();
-
-pub fn set_hook(h: Arc<dyn MetricsHook>) -> Result<(), Arc<dyn MetricsHook>> {
-    METRICS_HOOK.set(h)
-}
+static ROUTER_COUNTER: OnceLock<Counter<u64>> = OnceLock::new();
+static RESTORE_COUNTER: OnceLock<Counter<u64>> = OnceLock::new();
+static EFFECT_COUNTER: OnceLock<Counter<u64>> = OnceLock::new();
+static VIEW_COUNTER: OnceLock<Counter<u64>> = OnceLock::new();
 
 #[inline]
 pub fn router_handle(event: &'static str, chat: i64, user: i64) {
-    if let Some(h) = METRICS_HOOK.get() {
-        h.router_handle(event, chat, user);
-    }
+    let c = ROUTER_COUNTER.get_or_init(|| {
+        meter()
+            .u64_counter("router_handle")
+            .with_description("router events")
+            .init()
+    });
+    c.add(
+        1,
+        &[
+            KeyValue::new("event", event),
+            KeyValue::new("chat", chat),
+            KeyValue::new("user", user),
+        ],
+    );
 }
 
 #[inline]
 pub fn restore_state(scene_id: &'static str, path: &'static str) {
-    if let Some(h) = METRICS_HOOK.get() {
-        h.restore_state(scene_id, path);
-    }
+    let c = RESTORE_COUNTER.get_or_init(|| {
+        meter()
+            .u64_counter("restore_state")
+            .with_description("restore path")
+            .init()
+    });
+    c.add(
+        1,
+        &[
+            KeyValue::new("scene", scene_id),
+            KeyValue::new("path", path),
+        ],
+    );
 }
 
 #[inline]
 pub fn apply_effect(scene_id: &'static str, effect: &'static str) {
-    if let Some(h) = METRICS_HOOK.get() {
-        h.apply_effect(scene_id, effect);
-    }
+    let c = EFFECT_COUNTER.get_or_init(|| {
+        meter()
+            .u64_counter("apply_effect")
+            .with_description("effect kind")
+            .init()
+    });
+    c.add(
+        1,
+        &[
+            KeyValue::new("scene", scene_id),
+            KeyValue::new("effect", effect),
+        ],
+    );
 }
 
 #[inline]
 pub fn apply_view(policy: &'static str) {
-    if let Some(h) = METRICS_HOOK.get() {
-        h.apply_view(policy);
-    }
+    let c = VIEW_COUNTER.get_or_init(|| {
+        meter()
+            .u64_counter("apply_view")
+            .with_description("render policy")
+            .init()
+    });
+    c.add(1, &[KeyValue::new("policy", policy)]);
 }
