@@ -8,13 +8,13 @@ crate-type = ["rlib"]
 
 [features]
 redis = ["dep:redis"]
-tracing = []
-metrics = []
+metrics = ["dep:opentelemetry"]
+encryption = ["dep:chacha20poly1305", "dep:rand", "dep:base64"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-teloxide = { version = "0.17", features = ["redis-storage", "webhooks", "webhooks-axum"] }
+teloxide = { version = "0.17", features = ["redis-storage", "webhooks", "webhooks-axum", "throttle"] }
 tokio = { version = "1.39", features = ["macros", "rt-multi-thread"] }
 thiserror = "2"
 blake3 = "1"
@@ -24,6 +24,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 redis = { version = "0.30", optional = true, default-features = false, features = ["aio", "tokio-comp", "connection-manager"] }
+opentelemetry = { version = "0.29", optional = true, features = ["metrics"] }
+chacha20poly1305 = { version = "0.10", optional = true }
+rand = { version = "0.9", optional = true }
+base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 url = "2"
