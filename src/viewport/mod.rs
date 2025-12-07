@@ -4,10 +4,11 @@ pub mod store;
 
 use crate::router::compose::SceneLookup;
 use crate::scene::RenderPolicy;
-use crate::session::UiStore;
+use crate::session::{UiDialogueStorage, UiStore};
 use crate::ui::message;
 use crate::ui::prelude::UiRequester;
 
+use crate::router::core::DIALOGUE_SNAPSHOT_TAG;
 use dialogue::Dialogue;
 use store::Store;
 use teloxide::{
@@ -67,12 +68,12 @@ impl<M: Store> Viewport<M> {
         meta: Option<MetaSpec>,
     ) -> anyhow::Result<()>
     where
-        R: UiRequester + Requester,
+        R: UiRequester,
         <R as Requester>::SendMessage: Send,
         <R as Requester>::EditMessageText: Send,
         <R as Requester>::DeleteMessage: Send,
         D: UiStore + Send + Sync,
-        S: dialogue::Storage<D> + Send + Sync,
+        S: UiDialogueStorage<D>,
         <S as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     {
         let mut mid_opt: Option<MessageId> = None;
@@ -254,7 +255,14 @@ impl<M: Store> Viewport<M> {
         if let Some(spec) = &meta {
             if let (Some(json), Some(mid)) = (&spec.state_json, mid_opt) {
                 if let Ok(mut s) = d.get_or_default().await {
-                    s.ui_set_scene_for_message(mid.0, json.clone());
+                    let checksum = blake3_hex(json.as_bytes());
+                    let env = serde_json::json!({
+                        "_tgk": DIALOGUE_SNAPSHOT_TAG,
+                        "state": json,
+                        "checksum": checksum,
+                    });
+
+                    s.ui_set_scene_for_message(mid.0, env.to_string());
 
                     if let Err(e) = d.update(s).await {
                         tracing::error!(

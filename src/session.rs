@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use teloxide::dispatching::dialogue;
 
 const MAX_SCENE_MAPPINGS: usize = 128;
 
@@ -28,6 +29,19 @@ pub trait UiStore:
 
     fn ui_get_active_scene_id(&self) -> Option<String>;
     fn ui_set_active_scene_id(&mut self, id: Option<String>);
+}
+
+pub trait UiDialogueStorage<D>: dialogue::Storage<D> + Send + Sync
+where
+    D: UiStore + Send + Sync,
+{
+}
+
+impl<T, D> UiDialogueStorage<D> for T
+where
+    D: UiStore + Send + Sync,
+    T: dialogue::Storage<D> + Send + Sync,
+{
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]

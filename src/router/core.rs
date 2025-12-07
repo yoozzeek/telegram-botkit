@@ -1,6 +1,6 @@
 use crate::router::compose;
 use crate::scene::{Ctx as SceneCtx, Effect, MsgPattern, RenderPolicy, Scene, UiEffect};
-use crate::session::UiStore;
+use crate::session::{UiDialogueStorage, UiStore};
 use crate::ui::{callback, message, prelude::UiRequester};
 use crate::viewport::{MetaSpec, SNAP_TTL_SECS, Viewport, store};
 
@@ -16,6 +16,18 @@ use teloxide::types::{
     ParseMode,
 };
 use tracing::instrument;
+
+pub const DIALOGUE_SNAPSHOT_TAG: &str = "tgk:s1";
+
+#[derive(serde::Deserialize)]
+struct DialogueSnapshot<'a> {
+    #[serde(rename = "_tgk")]
+    tag: &'a str,
+    #[serde(borrow)]
+    state: &'a str,
+    #[serde(borrow)]
+    checksum: Option<&'a str>,
+}
 
 pub type EntryFuture<'a, S> =
     Pin<Box<dyn Future<Output = Option<<S as Scene>::State>> + Send + 'a>>;
@@ -52,11 +64,11 @@ pub type CbEntryDyn<S, C, D, St> = dyn for<'a> Fn(
 )]
 pub async fn run_ui_effects<R, D, S>(bot: &R, chat: ChatId, d: &Dialogue<D, S>, ui: &Vec<UiEffect>)
 where
-    R: UiRequester + Requester,
+    R: UiRequester,
     <R as Requester>::SendMessage: Send,
     <R as Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     for eff in ui {
@@ -119,7 +131,8 @@ pub async fn restore_state<S: Scene, D, St, M>(
 ) -> (S::State, &'static str)
 where
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
+    <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
     let mut out_state: Option<S::State> = None;
@@ -129,16 +142,29 @@ where
         if let Ok(Some(sess)) = d.get().await {
             if sess.ui_get_last_action_message_id() == Some(mid.0) {
                 if let Some(json) = sess.ui_get_scene_for_message(mid.0) {
-                    let snap = crate::scene::Snapshot {
-                        scene_id: S::ID,
-                        scene_version: S::VERSION,
-                        state_json: Some(json.as_str()),
-                        state_checksum: None,
-                    };
+                    let (state_json, state_checksum) =
+                        if let Ok(env) = serde_json::from_str::<DialogueSnapshot>(&json) {
+                            if env.tag == DIALOGUE_SNAPSHOT_TAG {
+                                (Some(env.state), env.checksum)
+                            } else {
+                                (Some(json.as_str()), None)
+                            }
+                        } else {
+                            (Some(json.as_str()), None)
+                        };
 
-                    if let Some(st) = scene.restore(snap) {
-                        out_state = Some(st);
-                        label = "dialogue";
+                    if let Some(body) = state_json {
+                        let snap = crate::scene::Snapshot {
+                            scene_id: S::ID,
+                            scene_version: S::VERSION,
+                            state_json: Some(body),
+                            state_checksum,
+                        };
+
+                        if let Some(st) = scene.restore(snap) {
+                            out_state = Some(st);
+                            label = "dialogue";
+                        }
                     }
                 }
             }
@@ -198,13 +224,10 @@ pub async fn apply_effect<S, C, D, St, M, R>(
 where
     S: Scene,
     C: AppCtx + Send + Sync,
-    <C::Bot as Requester>::SendMessage: Send,
-    <C::Bot as Requester>::EditMessageText: Send,
-    <C::Bot as Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
-    M: store::Store + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
+    M: store::Store + Send + Sync,
     R: compose::RouterDispatch<C, D, St, M>,
 {
     let eff_label: &str = match &eff {
@@ -343,13 +366,10 @@ pub async fn init_and_render<S, C, D, St, M>(
 where
     S: Scene,
     C: AppCtx + Sync,
-    <C::Bot as Requester>::SendMessage: Send,
-    <C::Bot as Requester>::EditMessageText: Send,
-    <C::Bot as Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
-    M: store::Store + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
+    M: store::Store + Send + Sync,
 {
     let sctx = SceneCtx {
         user_id: ctx.user_id(),
@@ -411,14 +431,10 @@ pub async fn run_cb<S, C, D, St, M, R>(
 where
     S: Scene,
     C: AppCtx + Send + Sync,
-    <C::Bot as Requester>::AnswerCallbackQuery: Send,
-    <C::Bot as Requester>::SendMessage: Send,
-    <C::Bot as Requester>::EditMessageText: Send,
-    <C::Bot as Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
-    M: store::Store + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
+    M: store::Store + Send + Sync,
     R: compose::RouterDispatch<C, D, St, M>,
 {
     let sctx = SceneCtx {
@@ -495,13 +511,10 @@ pub async fn run_msg<S, C, D, St, M, R>(
 where
     S: Scene,
     C: AppCtx + Send + Sync,
-    <C::Bot as Requester>::SendMessage: Send,
-    <C::Bot as Requester>::EditMessageText: Send,
-    <C::Bot as Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
-    M: store::Store + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
+    M: store::Store + Send + Sync,
     R: compose::RouterDispatch<C, D, St, M>,
 {
     let sctx = SceneCtx {

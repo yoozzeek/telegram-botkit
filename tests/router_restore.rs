@@ -184,3 +184,59 @@ async fn restore_meta_mismatch_falls_back_to_init() {
     assert_eq!(st, State::Root);
     assert_eq!(label, "mismatch");
 }
+
+#[tokio::test]
+async fn restore_dialogue_checksum_mismatch_falls_back_to_meta() {
+    let store = MapStore::default();
+    let vp = Viewport::new(store.clone());
+    let d = dialogue();
+
+    let mid = 200;
+
+    // Prepare valid meta snapshot
+    // with correct checksum via helper.
+    let from_meta = State::FromMeta(42);
+    let meta_json = serde_json::to_string(&from_meta).unwrap();
+
+    vp.save_meta_public(
+        ChatId(1),
+        mid,
+        MetaSpec {
+            scene_id: TestScene::ID,
+            scene_version: TestScene::VERSION,
+            state_json: Some(meta_json),
+            state_ref: None,
+            ttl_secs: 60,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Prepare dialogue snapshot envelope
+    // with mismatched checksum.
+    let from_dialogue = State::FromDialogue(5);
+    let dlg_json = serde_json::to_string(&from_dialogue).unwrap();
+    let env = serde_json::json!({
+        "_tgk": "tgk:s1",
+        "state": dlg_json,
+        "checksum": "badhash",
+    });
+
+    let mut sess = d.get_or_default().await.unwrap();
+    sess.ui_set_last_action_message_id(Some(mid));
+    sess.ui_set_scene_for_message(mid, env.to_string());
+    
+    d.update(sess).await.unwrap();
+
+    let (st, label) = restore_state(
+        &TestScene,
+        &vp,
+        &d,
+        &sctx(),
+        Some((ChatId(1), MessageId(mid))),
+    )
+    .await;
+
+    assert_eq!(st, State::FromMeta(42));
+    assert_eq!(label, "meta");
+}

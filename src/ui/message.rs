@@ -1,4 +1,4 @@
-use crate::session::UiStore;
+use crate::session::{UiDialogueStorage, UiStore};
 use crate::ui::prelude::UiRequester;
 
 use dispatching::dialogue::Dialogue;
@@ -31,11 +31,11 @@ pub async fn compact_reply<R, D, S>(
     ttl: Option<Duration>,
 ) -> Result<MessageId, teloxide::RequestError>
 where
-    R: UiRequester + requests::Requester,
+    R: UiRequester,
     <R as requests::Requester>::SendMessage: Send,
     <R as requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     if let Some(prev) = previous {
@@ -118,11 +118,11 @@ pub async fn refresh_or_reply_with<R, D, S>(
     opts: EditOptions,
 ) -> Result<MessageId, teloxide::RequestError>
 where
-    R: UiRequester + requests::Requester,
+    R: UiRequester,
     <R as requests::Requester>::EditMessageText: Send,
     <R as requests::Requester>::SendMessage: Send,
     D: UiStore + Send + Sync,
-    S: dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     let mut to_mid: Option<MessageId> = None;
@@ -221,7 +221,7 @@ pub async fn notify_ephemeral<R>(
     ttl: Duration,
 ) -> Result<MessageId, teloxide::RequestError>
 where
-    R: UiRequester + requests::Requester,
+    R: UiRequester,
     <R as requests::Requester>::SendMessage: Send,
     <R as requests::Requester>::DeleteMessage: Send,
 {
@@ -246,10 +246,10 @@ where
 
 pub async fn clear_input_prompt_message<R, D, S>(bot: &R, chat: ChatId, d: &Dialogue<D, S>)
 where
-    R: UiRequester + requests::Requester,
+    R: UiRequester,
     <R as requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     if let Ok(mut s) = d.get_or_default().await {

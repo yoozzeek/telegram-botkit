@@ -1,4 +1,4 @@
-use crate::prelude::UiStore;
+use crate::prelude::{UiDialogueStorage, UiStore};
 use crate::router;
 use crate::router::AppCtx;
 use crate::router::core::{CbEntryDyn, MsgEntryDyn, init_and_render, run_cb, run_msg};
@@ -8,7 +8,6 @@ use crate::viewport::{Viewport, store};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use teloxide::dispatching::dialogue::{self, Dialogue};
-use teloxide::prelude::Requester;
 use teloxide::types::{CallbackQuery, Message};
 use thiserror::Error;
 
@@ -25,7 +24,7 @@ pub trait RouterDispatch<C, D, St, M>: Send + Sync
 where
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -64,7 +63,7 @@ trait RouteFns<C, D, St, M>: Send + Sync
 where
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -107,7 +106,7 @@ where
     S: Scene,
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -123,13 +122,9 @@ where
     S: Scene + Send + Sync + 'static,
     C: AppCtx + Send + Sync + 'static,
     D: UiStore + Send + Sync + 'static,
-    St: dialogue::Storage<D> + Send + Sync + 'static,
+    St: UiDialogueStorage<D> + 'static,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync + 'static,
-    <C::Bot as Requester>::SendMessage: Send,
-    <C::Bot as Requester>::EditMessageText: Send,
-    <C::Bot as Requester>::DeleteMessage: Send,
-    <C::Bot as Requester>::AnswerCallbackQuery: Send,
 {
     fn id(&self) -> &'static str {
         S::ID
@@ -222,7 +217,7 @@ impl<C, D, St, M> Routes<C, D, St, M>
 where
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -261,7 +256,7 @@ impl<C, D, St, M> RouterDispatch<C, D, St, M> for Routes<C, D, St, M>
 where
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -333,7 +328,7 @@ impl<C, D, St, M> SceneLookup for Routes<C, D, St, M>
 where
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -372,7 +367,7 @@ impl<C, D, St, M> Builder<C, D, St, M>
 where
     C: AppCtx + Send + Sync + 'static,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync + 'static,
+    St: UiDialogueStorage<D> + 'static,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -383,10 +378,6 @@ where
     pub fn route<S>(mut self, sc: SceneBuilder<S, C, D, St, M>) -> Self
     where
         S: Scene + Send + Sync + 'static,
-        <C::Bot as Requester>::SendMessage: Send,
-        <C::Bot as Requester>::EditMessageText: Send,
-        <C::Bot as Requester>::DeleteMessage: Send,
-        <C::Bot as Requester>::AnswerCallbackQuery: Send,
     {
         let route = Box::new(SceneRoute::<S, C, D, St, M> {
             scene: sc.scene,
@@ -409,7 +400,7 @@ impl<C, D, St, M> Default for Builder<C, D, St, M>
 where
     C: AppCtx + Send + Sync + 'static,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync + 'static,
+    St: UiDialogueStorage<D> + 'static,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {
@@ -434,7 +425,7 @@ where
     S: Scene + Send + Sync + 'static,
     C: AppCtx + Send + Sync + 'static,
     D: UiStore + Send + Sync + 'static,
-    St: dialogue::Storage<D> + Send + Sync + 'static,
+    St: UiDialogueStorage<D> + 'static,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     pub fn msg_entry<F>(mut self, f: F) -> Self
@@ -475,7 +466,7 @@ where
     S: Scene + Default,
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     SceneBuilder {
@@ -491,7 +482,7 @@ where
     S: Scene,
     C: AppCtx + Send + Sync,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync,
+    St: UiDialogueStorage<D>,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
 {
     SceneBuilder {
@@ -506,7 +497,7 @@ impl<C, D, St, M> Builder<C, D, St, M>
 where
     C: AppCtx + Send + Sync + 'static,
     D: UiStore + Send + Sync,
-    St: dialogue::Storage<D> + Send + Sync + 'static,
+    St: UiDialogueStorage<D> + 'static,
     <St as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     M: store::Store + Send + Sync,
 {

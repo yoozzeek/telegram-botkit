@@ -1,7 +1,7 @@
 pub mod compose;
 pub mod core;
 
-use crate::session::UiStore;
+use crate::session::{UiDialogueStorage, UiStore};
 use crate::ui::callback;
 use crate::ui::message::{clear_input_prompt_message, delete_incoming};
 use crate::ui::prelude::UiRequester;
@@ -22,7 +22,13 @@ pub enum AppEvent<'a> {
     Cb(&'a CallbackQuery),
 }
 
-pub trait AppCtx {
+pub trait AppCtx
+where
+    <Self::Bot as Requester>::SendMessage: Send,
+    <Self::Bot as Requester>::EditMessageText: Send,
+    <Self::Bot as Requester>::DeleteMessage: Send,
+    <Self::Bot as Requester>::AnswerCallbackQuery: Send,
+{
     type Bot: UiRequester;
 
     fn bot(&self) -> &Self::Bot;
@@ -105,13 +111,9 @@ impl<R> Router<R> {
     where
         C: AppCtx + Send + Sync,
         D: UiStore + Send + Sync,
-        S: dialogue::Storage<D> + Send + Sync,
+        S: UiDialogueStorage<D>,
         M: Store + Send + Sync,
         R: compose::RouterDispatch<C, D, S, M> + compose::SceneLookup,
-        <C::Bot as Requester>::AnswerCallbackQuery: Send,
-        <C::Bot as Requester>::DeleteMessage: Send,
-        <C::Bot as Requester>::SendMessage: Send,
-        <C::Bot as Requester>::EditMessageText: Send,
         <S as dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     {
         if let Some(u) = ctx.username() {

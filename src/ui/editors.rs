@@ -1,4 +1,4 @@
-use crate::session::UiStore;
+use crate::session::{UiDialogueStorage, UiStore};
 use crate::ui::formatters::{
     format_sol, parse_percent_to_bp, parse_sol_to_lamports, parse_solana_address,
     parse_time_duration,
@@ -19,31 +19,16 @@ pub async fn edit_lamports<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_lamports:prompt_inactive").await {
         return false;
     }
 
@@ -54,38 +39,12 @@ where
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
 
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    success_msg(v),
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_lamports ok)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, success_msg(v), "edit_lamports:ok").await;
 
                 true
             }
             _ => {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_lamports err)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_lamports:err").await;
 
                 false
             }
@@ -104,31 +63,16 @@ pub async fn edit_percent<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_percent:prompt_inactive").await {
         return false;
     }
 
@@ -138,38 +82,12 @@ where
                 apply_bp(bp);
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    success_msg(bp),
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_percent ok)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, success_msg(bp), "edit_percent:ok").await;
 
                 true
             }
             _ => {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_percent err)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_percent:err").await;
 
                 false
             }
@@ -188,31 +106,16 @@ pub async fn edit_percent_positive<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_percent_positive:prompt_inactive").await {
         return false;
     }
 
@@ -220,20 +123,8 @@ where
         Some(text) => {
             let t = text.trim();
             if t.starts_with('-') {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_percent_positive sign)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_percent_positive:sign")
+                    .await;
 
                 return false;
             }
@@ -244,38 +135,19 @@ where
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
 
-                    if let Err(e) = notify_ephemeral(
+                    notify_ephemeral_safe(
                         bot,
                         msg.chat.id,
                         success_msg(bp),
-                        std::time::Duration::from_secs(3),
+                        "edit_percent_positive:ok",
                     )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_percent_positive ok)"
-                        );
-                    }
+                    .await;
 
                     true
                 }
                 _ => {
-                    if let Err(e) = notify_ephemeral(
-                        bot,
-                        msg.chat.id,
-                        err_text,
-                        std::time::Duration::from_secs(3),
-                    )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_percent_positive err)"
-                        );
-                    }
+                    notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_percent_positive:err")
+                        .await;
 
                     false
                 }
@@ -295,31 +167,16 @@ pub async fn edit_percent_negative<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_percent_negative:prompt_inactive").await {
         return false;
     }
 
@@ -327,20 +184,8 @@ where
         Some(text) => {
             let t = text.trim();
             if t.starts_with('+') {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_percent_negative sign)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_percent_negative:sign")
+                    .await;
 
                 return false;
             }
@@ -350,38 +195,19 @@ where
                     apply_bp(bp);
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
-                    if let Err(e) = notify_ephemeral(
+                    notify_ephemeral_safe(
                         bot,
                         msg.chat.id,
                         success_msg(bp),
-                        std::time::Duration::from_secs(3),
+                        "edit_percent_negative:ok",
                     )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_percent_negative ok)"
-                        );
-                    }
+                    .await;
 
                     true
                 }
                 _ => {
-                    if let Err(e) = notify_ephemeral(
-                        bot,
-                        msg.chat.id,
-                        err_text,
-                        std::time::Duration::from_secs(3),
-                    )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_percent_negative err)"
-                        );
-                    }
+                    notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_percent_negative:err")
+                        .await;
 
                     false
                 }
@@ -401,31 +227,16 @@ pub async fn edit_time_secs<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_time_secs:prompt_inactive").await {
         return false;
     }
 
@@ -436,38 +247,13 @@ where
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
 
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    success_msg(secs),
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_time_secs ok)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, success_msg(secs), "edit_time_secs:ok")
+                    .await;
 
                 true
             }
             _ => {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_time_secs err)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_time_secs:err").await;
                 false
             }
         },
@@ -484,31 +270,16 @@ pub async fn edit_u64<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_u64:prompt_inactive").await {
         return false;
     }
 
@@ -521,38 +292,12 @@ where
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
 
-                    if let Err(e) = notify_ephemeral(
-                        bot,
-                        msg.chat.id,
-                        success_msg(v),
-                        std::time::Duration::from_secs(3),
-                    )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_u64 ok)"
-                        );
-                    }
+                    notify_ephemeral_safe(bot, msg.chat.id, success_msg(v), "edit_u64:ok").await;
 
                     true
                 }
                 Err(_) => {
-                    if let Err(e) = notify_ephemeral(
-                        bot,
-                        msg.chat.id,
-                        err_text,
-                        std::time::Duration::from_secs(3),
-                    )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_u64 err)"
-                        );
-                    }
+                    notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_u64:err").await;
 
                     false
                 }
@@ -572,32 +317,17 @@ pub async fn edit_u64_valid<R, D, S, F, M, V>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(u64),
     M: Fn(u64) -> String,
     V: Fn(u64) -> bool,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_u64_valid:prompt_inactive").await {
         return false;
     }
 
@@ -610,38 +340,13 @@ where
 
                     clear_input_prompt_message(bot, msg.chat.id, d).await;
 
-                    if let Err(e) = notify_ephemeral(
-                        bot,
-                        msg.chat.id,
-                        success_msg(v),
-                        std::time::Duration::from_secs(3),
-                    )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_u64_valid ok)"
-                        );
-                    }
+                    notify_ephemeral_safe(bot, msg.chat.id, success_msg(v), "edit_u64_valid:ok")
+                        .await;
 
                     true
                 }
                 _ => {
-                    if let Err(e) = notify_ephemeral(
-                        bot,
-                        msg.chat.id,
-                        err_text,
-                        std::time::Duration::from_secs(3),
-                    )
-                    .await
-                    {
-                        tracing::warn!(
-                            error=?e,
-                            chat=%msg.chat.id.0,
-                            "notify_ephemeral failed (edit_u64_valid err)"
-                        );
-                    }
+                    notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_u64_valid:err").await;
 
                     false
                 }
@@ -660,31 +365,16 @@ pub async fn edit_string_nonempty<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(String),
     M: Fn(&str) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_string_nonempty:prompt_inactive").await {
         return false;
     }
 
@@ -692,40 +382,16 @@ where
         Some(text) => {
             let t = text.trim();
             if t.is_empty() {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_string_nonempty empty)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_string_nonempty:empty")
+                    .await;
 
                 false
             } else {
                 apply(t.to_string());
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    success_msg(t),
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_string_nonempty ok)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, success_msg(t), "edit_string_nonempty:ok")
+                    .await;
 
                 true
             }
@@ -743,31 +409,16 @@ pub async fn edit_base58_address<R, D, S, F, M>(
     err_text: &str,
 ) -> bool
 where
-    R: UiRequester + teloxide::requests::Requester,
+    R: UiRequester,
     <R as teloxide::requests::Requester>::SendMessage: Send,
     <R as teloxide::requests::Requester>::DeleteMessage: Send,
     D: UiStore + Send + Sync,
-    S: teloxide::dispatching::dialogue::Storage<D> + Send + Sync,
+    S: UiDialogueStorage<D>,
     <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
     F: FnMut(String),
     M: Fn(&str) -> String,
 {
-    if d.get()
-        .await
-        .ok()
-        .flatten()
-        .and_then(|s| s.ui_get_input_prompt_message_id())
-        .is_none()
-    {
-        if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
-            tracing::warn!(
-                error=?e,
-                chat=%msg.chat.id.0,
-                mid=%msg.id,
-                "delete message failed (prompt inactive)"
-            );
-        }
-
+    if !ensure_prompt_active(bot, d, msg, "edit_base58_address:prompt_inactive").await {
         return false;
     }
 
@@ -778,38 +429,18 @@ where
 
                 clear_input_prompt_message(bot, msg.chat.id, d).await;
 
-                if let Err(e) = notify_ephemeral(
+                notify_ephemeral_safe(
                     bot,
                     msg.chat.id,
                     success_msg(&addr),
-                    std::time::Duration::from_secs(3),
+                    "edit_base58_address:ok",
                 )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_base58_address ok)"
-                    );
-                }
+                .await;
 
                 true
             }
             None => {
-                if let Err(e) = notify_ephemeral(
-                    bot,
-                    msg.chat.id,
-                    err_text,
-                    std::time::Duration::from_secs(3),
-                )
-                .await
-                {
-                    tracing::warn!(
-                        error=?e,
-                        chat=%msg.chat.id.0,
-                        "notify_ephemeral failed (edit_base58_address err)"
-                    );
-                }
+                notify_ephemeral_safe(bot, msg.chat.id, err_text, "edit_base58_address:err").await;
 
                 false
             }
@@ -831,4 +462,58 @@ pub fn ok_time(prefix: &str, secs: u64) -> String {
         "✅ {prefix} {}",
         crate::ui::formatters::format_duration_short(secs)
     )
+}
+
+async fn ensure_prompt_active<R, D, S>(
+    bot: &R,
+    d: &Dialogue<D, S>,
+    msg: &Message,
+    ctx: &'static str,
+) -> bool
+where
+    R: UiRequester,
+    <R as teloxide::requests::Requester>::DeleteMessage: Send,
+    D: UiStore + Send + Sync,
+    S: UiDialogueStorage<D>,
+    <S as teloxide::dispatching::dialogue::Storage<D>>::Error: std::fmt::Debug + Send,
+{
+    if d.get()
+        .await
+        .ok()
+        .flatten()
+        .and_then(|s| s.ui_get_input_prompt_message_id())
+        .is_some()
+    {
+        return true;
+    }
+
+    if let Err(e) = bot.delete_message(msg.chat.id, msg.id).await {
+        tracing::warn!(
+            error=?e,
+            chat=%msg.chat.id.0,
+            mid=%msg.id,
+            "delete message failed ({ctx})",
+        );
+    }
+
+    false
+}
+
+async fn notify_ephemeral_safe<R>(
+    bot: &R,
+    chat: teloxide::types::ChatId,
+    text: impl Into<String>,
+    ctx: &'static str,
+) where
+    R: UiRequester,
+    <R as teloxide::requests::Requester>::SendMessage: Send,
+    <R as teloxide::requests::Requester>::DeleteMessage: Send,
+{
+    if let Err(e) = notify_ephemeral(bot, chat, text, std::time::Duration::from_secs(3)).await {
+        tracing::warn!(
+            error=?e,
+            chat=%chat.0,
+            "notify_ephemeral failed ({ctx})",
+        );
+    }
 }
